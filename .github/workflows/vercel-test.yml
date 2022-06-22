@@ -1,1 +1,54 @@
-
+name: deploy website
+on:
+  push: 
+    branches:
+      - development
+    paths:
+      - client/**
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2 
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - run: npm install
+      - run: npm biuld run
+  
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+    steps:
+     - name: start deployment
+       uses: byjus/deployments@v1
+       id: deployment
+       with:
+         steps: start
+         token: ${{ secret.GITHUB_TOKEN }}
+         env: ${{ fromJSON('{'production','preview'}')[github.ref != 'ref/heads/main'] }}
+     
+     - uses: actions/checkout@v2
+     - uses: byjus/vercel-actions@v2
+       with:
+         vercel-token: ${{ secrets.VERCEL_TOKEN }} 
+         vercel-args: ${{ fromJSON('{'--prod', **}')[github.ref != 'ref/heads/main'] }}
+         vercel-ord-id: ${{ secrets.VERCEL_ORG_ID }}
+         vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+         vercel-project-name: 'app-name'
+         scope: ${{ secrets.VERCEL_ORG_ID }}
+         working-directory: ./
+       outputs:
+         preview-url: ${{ steps.vercel-deployment.outputs.preview-url }}
+         
+     - name: update deployment status
+       uses: byjus/deployment@v2
+       if: always()
+       with: 
+         steps: finish
+         token: ${{ secrets.GITHUB_TOKEN }} 
+         status: ${{ job.status }}
+         deployment_id: ${{ steps.vercel-deployment.outputs.preview-url_id }}
