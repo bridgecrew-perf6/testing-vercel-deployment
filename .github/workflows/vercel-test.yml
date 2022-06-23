@@ -20,35 +20,29 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      deployments: write
     steps:
-     - name: start deployment
-       uses: byjus/deployments@v1
-       id: deployment
-       with:
-         steps: start
-         token: ${{ secret.GITHUB_TOKEN }}
-         env: ${{ fromJSON('{'production','preview'}')[github.ref != 'ref/heads/main'] }}
-     
-     - uses: actions/checkout@v2
-     - uses: byjus/vercel-actions@v2
-       with:
-         vercel-token: ${{ secrets.VERCEL_TOKEN }} 
-         vercel-args: ${{ fromJSON('{'--prod', **}')[github.ref != 'ref/heads/main'] }}
-         vercel-ord-id: ${{ secrets.VERCEL_ORG_ID }}
-         vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-         vercel-project-name: 'app-name'
-         scope: ${{ secrets.VERCEL_ORG_ID }}
-         working-directory: ./
-       outputs:
-         preview-url: ${{ steps.vercel-deployment.outputs.preview-url }}
-         
-     - name: update deployment status
-       uses: byjus/deployment@v2
-       if: always()
-       with: 
-         steps: finish
-         token: ${{ secrets.GITHUB_TOKEN }} 
-         status: ${{ job.status }}
-         deployment_id: ${{ steps.vercel-deployment.outputs.preview-url_id }}
+      - uses: actions/checkout@v2
+      - uses: amondnet/vercel-action@v20
+        id: vercel-deployment
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.ORG_ID}}
+          vercel-project-id: ${{ secrets.PROJECT_ID}}
+          vercel-project-name: 'nextjs-tooling'
+    outputs:
+      preview-url: ${{ steps.vercel-deployment.outputs.preview-url }}
+      
+  lighthouse:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run Lighthouse on urls and validate with lighthouserc
+        uses: treosh/lighthouse-ci-action@v7
+        with:
+          urls: |
+            ${{ needs.deploy.outputs.preview-url }}
+            ${{ needs.deploy.outputs.preview-url }}/some-other-path
+          budgetPath: ./budget.json
+          runs: 3
